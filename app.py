@@ -178,3 +178,51 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig, use_container_width=True)
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# 1. 1906~2025 서울 연평균 기온 데이터 생성 (기상청 기후통계 기준 경향 반영)
+np.random.seed(42)
+years = np.arange(1906, 2026)
+
+# 비선형적인 기온 상승 트렌드 모델링 (1950년 이후 가속화)
+base_temp = 10.8
+trend = 0.012 * (years - 1906) + 0.00018 * np.maximum(0, years - 1950)**2
+noise = np.random.normal(0, 0.55, len(years))
+temp_data = base_temp + trend + noise
+
+df = pd.DataFrame({'Year': years, 'Temp': temp_data})
+
+# 2. 데이터셋 분할
+train_50 = df[(df['Year'] >= 1956) & (df['Year'] <= 2005)]
+train_100 = df[(df['Year'] >= 1906) & (df['Year'] <= 2005)]
+test_20 = df[(df['Year'] >= 2006) & (df['Year'] <= 2025)]
+
+X_test = test_20[['Year']]
+y_test = test_20['Temp']
+
+# 3. 모델 학습 및 예측
+# Model A: 최근 50년 (1956-2005)
+model_50 = LinearRegression()
+model_50.fit(train_50[['Year']], train_50['Temp'])
+pred_50 = model_50.predict(X_test)
+
+# Model B: 최근 100년 (1906-2005)
+model_100 = LinearRegression()
+model_100.fit(train_100[['Year']], train_100['Temp'])
+pred_100 = model_100.predict(X_test)
+
+# 4. 성능 평가 함수
+def evaluate(y_true, y_pred):
+    mae = mean_absolute_error(y_true, y_pred)
+    mse = mean_squared_error(y_true, y_pred)
+    r2 = r2_score(y_true, y_pred)
+    return mae, mse, r2
+
+mae_50, mse_50, r2_50 = evaluate(y_test, pred_50)
+mae_100, mse_100, r2_100 = evaluate(y_test, pred_100)
+
+print(f"[최근 50년 모델] 기울기: {model_50.coef_[0]:.4f} | MAE: {mae_50:.3f} | MSE: {mse_50:.3f} | R²: {r2_50:.3f}")
+print(f"[최근 100년 모델] 기울기: {model_100.coef_[0]:.4f} | MAE: {mae_100:.3f} | MSE: {mse_100:.3f} | R²: {r2_100:.3f}")
